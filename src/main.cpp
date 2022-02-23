@@ -23,9 +23,11 @@ HASensor * sps30_pm2_5 = new HASensor("sps30-sensor-2.5pm");
 HASensor * sps30_pm4 = new HASensor("sps30-sensor-4pm");
 HASensor * sps30_pm10 = new HASensor("sps30-sensor-10pm");
 
+
+const int dht_pin = 4;
 HASensor * dht22Humidity = new HASensor("dht22-sensor-humidity");
 HASensor * dht22Temperature = new HASensor("dht22-sensor-temperature");
-
+DHT dht22(dht_pin,AM2301, 1);
 
 void setupOTA() {
     ArduinoOTA
@@ -91,6 +93,15 @@ void setup(){
     dht22Temperature->setDeviceClass("temperature");
 //    dht22Temperature->setUnitOfMeasurement("%");
 
+    dht22.begin();
+
+    float humidity = dht22.readHumidity(true);
+    dht22Humidity->setValue(humidity);
+
+    float temp = dht22.readTemperature(true, true);
+    dht22Temperature->setValue(temp);
+
+    //TODO: Is there a way to detect if the device has been disconnected?
     dht22Humidity->setAvailability(true);
     dht22Temperature->setAvailability(true);
 

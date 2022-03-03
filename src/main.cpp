@@ -17,7 +17,7 @@ HAMqtt mqtt(client, device);
 
 const char * ssid = "WaitingOnComcast";
 const char * pwd = "1594N2640W";
-const char * mqtt_host = "tiltpi.equationoftime.org";
+const char * mqtt_host = "tiltpi.equationoftime.tech";
 
 const int led_pin = 2;
 
@@ -25,7 +25,7 @@ const int motion_sensor_pin = 3;
 HABinarySensor * motionSensor = new HABinarySensor("motion-sensor", false);
 
 HASensor * sps30_pm1 = new HASensor("sps30-sensor-1pm");
-HASensor * sps30_pm2_5 = new HASensor("sps30-sensor-2.5pm");
+HASensor * sps30_pm2_5 = new HASensor("sps30-sensor-2_5pm");
 HASensor * sps30_pm4 = new HASensor("sps30-sensor-4pm");
 HASensor * sps30_pm10 = new HASensor("sps30-sensor-10pm");
 HASensor * sps30_typical = new HASensor("sps30-sensor-typical-particle-size");
@@ -70,21 +70,27 @@ void setupOTA() {
 
 void configureSPS30()
 {
+    sps30_pm1->setName("pm1");
     sps30_pm1->setDeviceClass("pm1");
     sps30_pm1->setUnitOfMeasurement("µg/m³");
 
+    sps30_pm2_5->setName("pm2.5");
     sps30_pm2_5->setDeviceClass("pm25");
     sps30_pm2_5->setUnitOfMeasurement("µg/m³");
 
+    sps30_pm4->setName("pm4");
     sps30_pm4->setDeviceClass("pm25");
     sps30_pm4->setUnitOfMeasurement("µg/m³");
 
+    sps30_pm10->setName("pm10");
     sps30_pm10->setDeviceClass("pm10");
     sps30_pm10->setUnitOfMeasurement("µg/m³");
 
+    sps30_typical->setName("pm typical");
     sps30_typical->setDeviceClass("pm10");
     sps30_typical->setUnitOfMeasurement("µm");
 
+    sps30_clean_switch->setName("Start Self Cleaning");
     sps30_clean_switch->onStateChanged([](bool state, HASwitch * s) {
         if (state)
         {
@@ -95,21 +101,34 @@ void configureSPS30()
         }
     });
 
+    sps30_sleep_switch->setName("Actively Reading");
     sps30_sleep_switch->onStateChanged([](bool state, HASwitch * s) {
         if (state){
-            sps30_wake_up();
+//            sps30_wake_up();
             //TODO: Is this too fast?
             uint16_t ret = sps30_start_measurement();
             if (ret < 0) {
-                printf("error starting measurement\n");
+                Serial.printf("error starting measurement\n");
             }
+
+            sps30_pm2_5->setAvailability(ret >= 0);
+            sps30_pm4->setAvailability(ret >= 0);
+            sps30_pm10->setAvailability(ret >= 0);
+            sps30_pm1->setAvailability(ret >= 0);
+            sps30_typical->setAvailability(ret >= 0);
         }
         else {
             uint16_t ret = sps30_stop_measurement();
             if (ret) {
-                printf("Stopping measurement failed\n");
+                Serial.printf("Stopping measurement failed\n");
             }
-            sps30_sleep();
+//            sps30_sleep();
+
+            sps30_pm2_5->setAvailability(false);
+            sps30_pm4->setAvailability(false);
+            sps30_pm10->setAvailability(false);
+            sps30_pm1->setAvailability(false);
+            sps30_typical->setAvailability(false);
         }
     });
 
@@ -142,6 +161,7 @@ void configureSPS30()
     }
 
     if (spsAvailable) {
+        Serial.printf("sps available\n");
         sps30_clean_switch->setAvailability(true);
         sps30_sleep_switch->setAvailability(true);
 
@@ -168,7 +188,18 @@ void configureSPS30()
         if (ret)
             Serial.printf("error %d setting the auto-clean interval\n", ret);
 
-        sps30_sleep();
+//        Serial.printf("sleeping..");
+//        ret = sps30_start_measurement();
+//        if (ret < 0) {
+//            Serial.printf("error starting measurement\n");
+//        }
+        ret = sps30_stop_measurement();
+        if (ret < 0) {
+            Serial.printf("error stopping measurement\n");
+        }
+        Serial.printf("starting..");
+
+//        sps30_sleep();
     }
 }
 
@@ -194,20 +225,20 @@ void readIfPossibleSPS30(){
             sps30_pm10->setValue(m.mc_10p0);
             sps30_typical->setValue(m.typical_particle_size);
 
-//            printf("measured values:\n"
-//                   "\t%0.2f pm1.0\n"
-//                   "\t%0.2f pm2.5\n"
-//                   "\t%0.2f pm4.0\n"
-//                   "\t%0.2f pm10.0\n"
-//                   "\t%0.2f nc0.5\n"
-//                   "\t%0.2f nc1.0\n"
-//                   "\t%0.2f nc2.5\n"
-//                   "\t%0.2f nc4.5\n"
-//                   "\t%0.2f nc10.0\n"
-//                   "\t%0.2f typical particle size\n\n",
-//                   m.mc_1p0, m.mc_2p5, m.mc_4p0, m.mc_10p0, m.nc_0p5,
-//                   m.nc_1p0, m.nc_2p5, m.nc_4p0, m.nc_10p0,
-//                   m.typical_particle_size);
+            Serial.printf("measured values:\n"
+                   "\t%0.2f pm1.0\n"
+                   "\t%0.2f pm2.5\n"
+                   "\t%0.2f pm4.0\n"
+                   "\t%0.2f pm10.0\n"
+                   "\t%0.2f nc0.5\n"
+                   "\t%0.2f nc1.0\n"
+                   "\t%0.2f nc2.5\n"
+                   "\t%0.2f nc4.5\n"
+                   "\t%0.2f nc10.0\n"
+                   "\t%0.2f typical particle size\n\n",
+                   m.mc_1p0, m.mc_2p5, m.mc_4p0, m.mc_10p0, m.nc_0p5,
+                   m.nc_1p0, m.nc_2p5, m.nc_4p0, m.nc_10p0,
+                   m.typical_particle_size);
         }
     }
 }
@@ -265,32 +296,35 @@ void setup(){
     //TODO: Setup logging endpoint
     setupOTA();
 
-    mqtt.begin(mqtt_host);
-
-    while (!mqtt.isConnected())
-    {
-        Serial.println("Mqtt not connected");
-    }
-
-    Serial.println("Mqtt connected");
-
-    device.setName("Workshop Controller");
     device.enableSharedAvailability();
-    device.setSoftwareVersion("1.0.0");
-    device.enableLastWill();
     device.setAvailability(true);
 
-    configureDHT22();
+    device.setName("Workshop Controller");
+    device.setSoftwareVersion("1.0.0");
+    device.enableLastWill();
+
+//    configureDHT22();
 
     configureSPS30();
 
     //configure motion sensor
-    motionSensor->setName("Workshop Motion Sensor");
     motionSensor->setAvailability(true);
+    motionSensor->setName("Workshop Motion Sensor");
 
     pinMode(motion_sensor_pin, INPUT);
+
+    mqtt.begin(mqtt_host,1883);
+
+    while (!mqtt.isConnected())
+    {
+        Serial.println("Mqtt not connected");
+        mqtt.loop();
+    }
+
+    Serial.println("Mqtt connected");
 }
 
+int read_time = 0;
 void loop(){
     mqtt.loop();
     ArduinoOTA.handle();
@@ -302,10 +336,11 @@ void loop(){
     }
 
     //TODO: If enough time has passed
-    if (false) {
+    if (millis() - read_time > 10000) {
         readIfPossibleSPS30();
     }
 
+//    if (millis() - read_time > 10000) {
     if (false) {
         float humidity = dht22.readHumidity(false);
         float temp = dht22.readTemperature(true, false);
@@ -319,6 +354,10 @@ void loop(){
         {
             dht22Temperature->setValue(temp);
         }
+    }
+
+    if (millis() - read_time > 10000) {
+        read_time = millis();
     }
 
 }

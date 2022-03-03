@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <HardwareSerial.h>
 #include "sensirion_arch_config.h"
 #include "sensirion_uart.h"
 
@@ -57,6 +58,7 @@ int16_t sensirion_uart_select_port(uint8_t port) {
  * Return:      0 on success, an error code otherwise
  */
 int16_t sensirion_uart_open() {
+    Serial2.begin(115200, SERIAL_8N1, 16, 17);
     return 0;
 }
 
@@ -66,7 +68,7 @@ int16_t sensirion_uart_open() {
  * Return:      0 on success, an error code otherwise
  */
 int16_t sensirion_uart_close() {
-    // TODO: implement
+    Serial2.end();
     return 0;
 }
 
@@ -78,8 +80,7 @@ int16_t sensirion_uart_close() {
  * Return:      Number of bytes sent or a negative error code
  */
 int16_t sensirion_uart_tx(uint16_t data_len, const uint8_t* data) {
-    // TODO: implement
-    return 0;
+    return Serial2.write(data, data_len);
 }
 
 /**
@@ -90,8 +91,7 @@ int16_t sensirion_uart_tx(uint16_t data_len, const uint8_t* data) {
  * Return:      Number of bytes received or a negative error code
  */
 int16_t sensirion_uart_rx(uint16_t max_data_len, uint8_t* data) {
-    // TODO: implement
-    return 0;
+    return Serial2.read(data, max_data_len);
 }
 
 /**
@@ -103,5 +103,5 @@ int16_t sensirion_uart_rx(uint16_t max_data_len, uint8_t* data) {
  * @param useconds the sleep time in microseconds
  */
 void sensirion_sleep_usec(uint32_t useconds) {
-    // TODO: implement
+    delayMicroseconds(useconds);
 }

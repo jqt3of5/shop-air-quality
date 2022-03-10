@@ -12,7 +12,7 @@
 #include <sensirion_uart.h>
 
 WiFiClient client;
-HADevice device("workshop-environment-controller");
+HADevice device("workshop-environment-controller-1");
 HAMqtt mqtt(client, device);
 
 const char * ssid = "WaitingOnComcast";
@@ -22,21 +22,21 @@ const char * mqtt_host = "tiltpi.equationoftime.tech";
 const int led_pin = 2;
 
 const int motion_sensor_pin = 3;
-HABinarySensor * motionSensor = new HABinarySensor("motion-sensor", false);
+HABinarySensor * motionSensor = new HABinarySensor("wec1_motion_sensor", false);
 
-HASensor * sps30_pm1 = new HASensor("sps30-sensor-1pm");
-HASensor * sps30_pm2_5 = new HASensor("sps30-sensor-2_5pm");
-HASensor * sps30_pm4 = new HASensor("sps30-sensor-4pm");
-HASensor * sps30_pm10 = new HASensor("sps30-sensor-10pm");
-HASensor * sps30_typical = new HASensor("sps30-sensor-typical-particle-size");
+HASensor * sps30_pm1 = new HASensor("wec1_sps30_1pm");
+HASensor * sps30_pm2_5 = new HASensor("wec1_sps30_2_5pm");
+HASensor * sps30_pm4 = new HASensor("wec1_sps30_4pm");
+HASensor * sps30_pm10 = new HASensor("wec1_sps30_10pm");
+HASensor * sps30_typical = new HASensor("wec1_sps30_typical_particle_size");
 
-HASwitch * sps30_sleep_switch = new HASwitch("sps30-wake-switch", false);
-HASwitch * sps30_clean_switch = new HASwitch("sps30-clean-switch", false);
+HASwitch * sps30_sleep_switch = new HASwitch("wec1_sps30_wake", false);
+HASwitch * sps30_clean_switch = new HASwitch("wec1_sps30_clean", false);
 
-const int dht_pin = 4;
+const int dht_pin = 21;
 DHT dht22(dht_pin,AM2301, 1);
-HASensor * dht22Humidity = new HASensor("dht22-sensor-humidity");
-HASensor * dht22Temperature = new HASensor("dht22-sensor-temperature");
+HASensor * dht22Humidity = new HASensor("wec1_dht22_humidity");
+HASensor * dht22Temperature = new HASensor("wec1_dht22_temperature");
 
 void setupOTA() {
     ArduinoOTA
@@ -70,19 +70,19 @@ void setupOTA() {
 
 void configureSPS30()
 {
-    sps30_pm1->setName("pm1");
+    sps30_pm1->setName("0.3 - 1.0 µm");
     sps30_pm1->setDeviceClass("pm1");
     sps30_pm1->setUnitOfMeasurement("µg/m³");
 
-    sps30_pm2_5->setName("pm2.5");
+    sps30_pm2_5->setName("0.3 - 2.5 µm");
     sps30_pm2_5->setDeviceClass("pm25");
     sps30_pm2_5->setUnitOfMeasurement("µg/m³");
 
-    sps30_pm4->setName("pm4");
+    sps30_pm4->setName("0.3 - 4.0 µm");
     sps30_pm4->setDeviceClass("pm25");
     sps30_pm4->setUnitOfMeasurement("µg/m³");
 
-    sps30_pm10->setName("pm10");
+    sps30_pm10->setName("0.3 - 10.0 µm");
     sps30_pm10->setDeviceClass("pm10");
     sps30_pm10->setUnitOfMeasurement("µg/m³");
 
@@ -264,11 +264,13 @@ void configureDHT22(){
     if (humidity != NAN)
     {
         dht22Humidity->setValue(humidity);
+        Serial.printf("humidity available: %f\n", humidity);
     }
 
     if (temp != NAN)
     {
         dht22Temperature->setValue(temp);
+        Serial.printf("temp available: %f\n", temp);
     }
 }
 
@@ -303,7 +305,7 @@ void setup(){
     device.setSoftwareVersion("1.0.0");
     device.enableLastWill();
 
-//    configureDHT22();
+    configureDHT22();
 
     configureSPS30();
 
@@ -324,7 +326,7 @@ void setup(){
     Serial.println("Mqtt connected");
 }
 
-int read_time = 0;
+unsigned long read_time = 0;
 void loop(){
     mqtt.loop();
     ArduinoOTA.handle();
@@ -340,11 +342,14 @@ void loop(){
         readIfPossibleSPS30();
     }
 
-//    if (millis() - read_time > 10000) {
-    if (false) {
+    if (millis() - read_time > 10000) {
         float humidity = dht22.readHumidity(false);
         float temp = dht22.readTemperature(true, false);
 
+        dht22Humidity->setAvailability(humidity != NAN);
+        dht22Temperature->setAvailability(temp != NAN);
+
+        Serial.printf("temp: %f humidity: %f\n", temp, humidity);
         if (humidity != NAN)
         {
             dht22Humidity->setValue(humidity);

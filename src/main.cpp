@@ -33,6 +33,9 @@ HASensor * sps30_typical = new HASensor("wec1_sps30_typical_particle_size");
 HASwitch * sps30_sleep_switch = new HASwitch("wec1_sps30_wake", false);
 HASwitch * sps30_clean_switch = new HASwitch("wec1_sps30_clean", false);
 
+const int current_sensor1_pin = 32;
+HASensor * current_sensor1 = new HASensor("wes1_current_sensor1");
+
 const int dht_pin = 21;
 DHT dht22(dht_pin,AM2301, 1);
 HASensor * dht22Humidity = new HASensor("wec1_dht22_humidity");
@@ -284,9 +287,9 @@ void setup(){
 
     WiFi.setAutoReconnect(true);
 
-    //TODO: A webportal to configure this would be awesome.
+    //TODO: A webportal to configure wifi stuff would be awesome.
+    //TODO: Save logs to internal memory for recovery
     do{
-        //TODO: Save to internal log for recovery
         Serial.println("Attempting Wifi connection");
         WiFi.begin(ssid, pwd);
     } while (WiFi.waitForConnectResult() != WL_CONNECTED);
@@ -294,8 +297,8 @@ void setup(){
     Serial.println("wifi connected");
 
     //TODO: Publish saved logs some where
-
     //TODO: Setup logging endpoint
+
     setupOTA();
 
     device.enableSharedAvailability();
@@ -314,6 +317,13 @@ void setup(){
     motionSensor->setName("Workshop Motion Sensor");
 
     pinMode(motion_sensor_pin, INPUT);
+
+    //TODO: configure current sensors
+    current_sensor1->setName("Workshop Current Sensor 1");
+    current_sensor1->setDeviceClass("");
+    current_sensor1->setUnitOfMeasurement("A");
+
+    current_sensor1->setAvailability(true);
 
     mqtt.begin(mqtt_host,1883);
 

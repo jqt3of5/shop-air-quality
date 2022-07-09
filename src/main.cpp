@@ -16,7 +16,7 @@ HADevice device("workshop-environment-controller-1");
 HAMqtt mqtt(client, device);
 
 const char * ssid = "WaitingOnComcast";
-const char * pwd = "1594N2640W";
+const char * pwd = "";
 const char * mqtt_host = "tiltpi.equationoftime.tech";
 
 const int led_pin = 2;
@@ -34,7 +34,7 @@ HASwitch * sps30_sleep_switch = new HASwitch("wec1_sps30_wake", false);
 HASwitch * sps30_clean_switch = new HASwitch("wec1_sps30_clean", false);
 
 const int current_sensor1_pin = 32;
-HASensor * current_sensor1 = new HASensor("wes1_current_sensor1");
+HASensor * current_sensor1 = new HASensor("wec1_current_sensor1");
 
 const int dht_pin = 21;
 DHT dht22(dht_pin,AM2301, 1);
@@ -320,8 +320,13 @@ void setup(){
 
     //TODO: configure current sensors
     current_sensor1->setName("Workshop Current Sensor 1");
-    current_sensor1->setDeviceClass("");
+    current_sensor1->setDeviceClass("current");
     current_sensor1->setUnitOfMeasurement("A");
+
+    analogSetAttenuation(ADC_2_5db);
+    adcAttachPin(current_sensor1_pin);
+    int current1 = analogRead(current_sensor1_pin);
+    current_sensor1->setValue(current1);
 
     current_sensor1->setAvailability(true);
 
@@ -336,7 +341,8 @@ void setup(){
     Serial.println("Mqtt connected");
 }
 
-unsigned long read_time = 0;
+unsigned long read_time_10s = 0;
+unsigned long read_time_500ms = 0;
 void loop(){
     mqtt.loop();
     ArduinoOTA.handle();
@@ -348,11 +354,11 @@ void loop(){
     }
 
     //TODO: If enough time has passed
-    if (millis() - read_time > 10000) {
+    if (millis() - read_time_10s > 10000) {
         readIfPossibleSPS30();
     }
 
-    if (millis() - read_time > 10000) {
+    if (millis() - read_time_10s > 10000) {
         float humidity = dht22.readHumidity(false);
         float temp = dht22.readTemperature(true, false);
 
@@ -371,9 +377,17 @@ void loop(){
         }
     }
 
-    if (millis() - read_time > 10000) {
-        read_time = millis();
+    if (millis() - read_time_500ms > 500) {
+        int current1 = analogRead(current_sensor1_pin);
+        current_sensor1->setValue(current1);
     }
 
+    if (millis() - read_time_10s > 10000) {
+        read_time_10s = millis();
+    }
+
+    if (millis() - read_time_500ms > 500) {
+        read_time_500ms = millis();
+    }
 }
 

@@ -3,7 +3,7 @@
 Since moving my workshop is going into the basement. Because it's an enslcosed area, inside the house, I want my dust collection game on point. That means dust collection on every tool, air filtration, and purification. And all of this needs to be convenient to use. It's also very possible that air filtration will need to run for some time after leaving the shop. And might even consist of multiple stages (As an example, an air filter for large particles, and a carbon/HEPA filter for smaller ones). 
 
 
-Most of this firmware will run on an ESP32 connecting to a home assistant instance. 
+Most of this firmware will run on an ESP32 connecting to a home assistant instance. Logs are sent to a GrayLog instance running in a docker container on my home PC
 
 This project will consist of the following components: Air Quality Monitor, temperature and humidity, presence detection, and dust collection 
 

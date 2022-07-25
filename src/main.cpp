@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <Wifi.h>
+#include <WiFi.h>
 #include <HardwareSerial.h>
 #include <HASensor.h>
 #include <HADevice.h>
@@ -10,18 +10,29 @@
 #include <DHT.h>
 #include <HASwitch.h>
 #include <sensirion_uart.h>
+#include <esp_task_wdt.h>
+#include <TLog.h>
+#include <SyslogStream.h>
+
+
+const char * mDNSname= "workshopcontroller1";
+const char * deviceId = "workshop-environment-controller-1";
+const char * ssid = "WaitingOnComcast";
+const char * pwd = "1594N2640W";
+const char * mqtt_host = "tiltpi.equationoftime.tech";
+const char * graylog_host = "dockervm";
+const int graylog_post = 1514;
+
+const int WDT_TIMEOUT = 5;
 
 WiFiClient client;
-HADevice device("workshop-environment-controller-1");
+HADevice device(deviceId);
 HAMqtt mqtt(client, device);
+SyslogStream telnetSerialStream = SyslogStream();
 
-const char * ssid = "WaitingOnComcast";
-const char * pwd = "";
-const char * mqtt_host = "tiltpi.equationoftime.tech";
+HASensor * uptime = new HASensor("wec1_uptime");
 
-const int led_pin = 2;
-
-const int motion_sensor_pin = 3;
+const int motion_sensor_pin = 35;
 HABinarySensor * motionSensor = new HABinarySensor("wec1_motion_sensor", false);
 
 HASensor * sps30_pm1 = new HASensor("wec1_sps30_1pm");
@@ -36,7 +47,7 @@ HASwitch * sps30_clean_switch = new HASwitch("wec1_sps30_clean", false);
 const int current_sensor1_pin = 32;
 HASensor * current_sensor1 = new HASensor("wec1_current_sensor1");
 
-const int dht_pin = 21;
+const int dht_pin = 26;
 DHT dht22(dht_pin,AM2301, 1);
 HASensor * dht22Humidity = new HASensor("wec1_dht22_humidity");
 HASensor * dht22Temperature = new HASensor("wec1_dht22_temperature");
@@ -51,21 +62,21 @@ void setupOTA() {
                     type = "filesystem";
 
                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-                Serial.println("Start updating " + type);
+                Log.println("Start updating " + type);
             })
             .onEnd([]() {
-                Serial.println("\nEnd");
+                Log.println("\nEnd");
             })
             .onProgress([](unsigned int progress, unsigned int total) {
-                Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+                Log.printf("Progress: %u%%\r", (progress / (total / 100)));
             })
             .onError([](ota_error_t error) {
-                Serial.printf("Error[%u]: ", error);
-                if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-                else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-                else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-                else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-                else if (error == OTA_END_ERROR) Serial.println("End Failed");
+                Log.printf("Error[%u]: ", error);
+                if (error == OTA_AUTH_ERROR) Log.println("Auth Failed");
+                else if (error == OTA_BEGIN_ERROR) Log.println("Begin Failed");
+                else if (error == OTA_CONNECT_ERROR) Log.println("Connect Failed");
+                else if (error == OTA_RECEIVE_ERROR) Log.println("Receive Failed");
+                else if (error == OTA_END_ERROR) Log.println("End Failed");
             });
 
     ArduinoOTA.begin();
@@ -111,7 +122,7 @@ void configureSPS30()
             //TODO: Is this too fast?
             uint16_t ret = sps30_start_measurement();
             if (ret < 0) {
-                Serial.printf("error starting measurement\n");
+                Log.printf("error starting measurement\n");
             }
 
             sps30_pm2_5->setAvailability(ret >= 0);
@@ -123,7 +134,7 @@ void configureSPS30()
         else {
             uint16_t ret = sps30_stop_measurement();
             if (ret) {
-                Serial.printf("Stopping measurement failed\n");
+                Log.printf("Stopping measurement failed\n");
             }
 //            sps30_sleep();
 
@@ -149,7 +160,7 @@ void configureSPS30()
             spsAvailable = true;
             break;
         }
-        Serial.printf("Failed to connect to sps30. Attempt %d\n", i);
+        Log.printf("Failed to connect to sps30. Attempt %d\n", i);
     }
 
     if (spsAvailable)
@@ -159,12 +170,12 @@ void configureSPS30()
                 spsAvailable = true;
                 break;
             }
-            Serial.printf("Failed to probe sps30. Attempt %d\n", i);
+            Log.printf("Failed to probe sps30. Attempt %d\n", i);
         }
     }
 
     if (spsAvailable) {
-        Serial.printf("sps available\n");
+        Log.printf("sps available\n");
         sps30_clean_switch->setAvailability(true);
         sps30_sleep_switch->setAvailability(true);
 
@@ -183,13 +194,13 @@ void configureSPS30()
 
         ret = sps30_get_serial(serial);
         if (ret)
-            Serial.printf("error %d reading serial\n", ret);
+            Log.printf("error %d reading serial\n", ret);
         else
-            Serial.printf("SPS30 Serial: %s\n", serial);
+            Log.printf("SPS30 Serial: %s\n", serial);
 
         ret = sps30_set_fan_auto_cleaning_interval_days(AUTO_CLEAN_DAYS);
         if (ret)
-            Serial.printf("error %d setting the auto-clean interval\n", ret);
+            Log.printf("error %d setting the auto-clean interval\n", ret);
 
 //        Serial.printf("sleeping..");
 //        ret = sps30_start_measurement();
@@ -198,10 +209,8 @@ void configureSPS30()
 //        }
         ret = sps30_stop_measurement();
         if (ret < 0) {
-            Serial.printf("error stopping measurement\n");
+            Log.printf("error stopping measurement\n");
         }
-        Serial.printf("starting..");
-
 //        sps30_sleep();
     }
 }
@@ -210,15 +219,15 @@ void readIfPossibleSPS30(){
 
     if (sps30_sleep_switch->isOnline() && sps30_sleep_switch->getState())
     {
-        printf("measurements started\n");
+        Log.printf("measurements started\n");
 
         struct sps30_measurement m;
         uint16_t ret = sps30_read_measurement(&m);
         if (ret < 0) {
-            printf("error reading measurement\n");
+            Log.printf("error reading measurement\n");
         } else {
             if (SPS30_IS_ERR_STATE(ret)) {
-                Serial.printf(
+                Log.printf(
                         "Chip state: %u - measurements may not be accurate\n",
                         SPS30_GET_ERR_STATE(ret));
             }
@@ -228,7 +237,7 @@ void readIfPossibleSPS30(){
             sps30_pm10->setValue(m.mc_10p0);
             sps30_typical->setValue(m.typical_particle_size);
 
-            Serial.printf("measured values:\n"
+            Log.printf("measured values:\n"
                    "\t%0.2f pm1.0\n"
                    "\t%0.2f pm2.5\n"
                    "\t%0.2f pm4.0\n"
@@ -267,23 +276,27 @@ void configureDHT22(){
     if (humidity != NAN)
     {
         dht22Humidity->setValue(humidity);
-        Serial.printf("humidity available: %f\n", humidity);
+        Log.printf("humidity available: %f\n", humidity);
     }
 
     if (temp != NAN)
     {
         dht22Temperature->setValue(temp);
-        Serial.printf("temp available: %f\n", temp);
+        Log.printf("temp available: %f\n", temp);
     }
 }
 
 void setup(){
 
-    Serial.begin(9600);
+    esp_task_wdt_init(WDT_TIMEOUT, true);
+    esp_task_wdt_add(NULL);
+
+    Serial.begin(115200);
 
     while (!Serial) { // needed to keep leonardo/micro from starting too fast!
         delay(10);
     }
+
 
     WiFi.setAutoReconnect(true);
 
@@ -294,10 +307,24 @@ void setup(){
         WiFi.begin(ssid, pwd);
     } while (WiFi.waitForConnectResult() != WL_CONNECTED);
 
-    Serial.println("wifi connected");
 
-    //TODO: Publish saved logs some where
-    //TODO: Setup logging endpoint
+    auto address = MDNS.queryHost(graylog_host);
+    if (((uint32_t)address) == 0)
+    {
+        Serial.printf("Query for %s failed\n", graylog_post);
+    }
+    else
+    {
+        telnetSerialStream.setDestination(address.toString().c_str());
+        telnetSerialStream.setRaw(true);
+        telnetSerialStream.setPort(graylog_post);
+
+        const std::shared_ptr<LOGBase> syslogStreamPtr = std::make_shared<SyslogStream>(telnetSerialStream);
+        Log.addPrintStream(syslogStreamPtr);
+    }
+
+    Log.begin();
+    Log.println("wifi connected");
 
     setupOTA();
 
@@ -307,6 +334,9 @@ void setup(){
     device.setName("Workshop Controller");
     device.setSoftwareVersion("1.0.0");
     device.enableLastWill();
+
+    uptime->setName("Workshop Controller Uptime");
+    uptime->setDeviceClass("duration");
 
     configureDHT22();
 
@@ -334,28 +364,42 @@ void setup(){
 
     while (!mqtt.isConnected())
     {
-        Serial.println("Mqtt not connected");
+        Log.println("Mqtt not connected");
         mqtt.loop();
     }
 
-    Serial.println("Mqtt connected");
+    Log.println("Mqtt connected");
+
+    MDNS.begin(mDNSname);
 }
 
 unsigned long read_time_10s = 0;
 unsigned long read_time_500ms = 0;
+unsigned long read_time_2s = 0;
 void loop(){
+
+    esp_task_wdt_reset();
+
+    Log.loop();
     mqtt.loop();
     ArduinoOTA.handle();
+
+    if (!mqtt.isConnected())
+    {
+        Log.println("Mqtt wasn't connected, restarting");
+        esp_restart();
+    }
+
+    if (!client.connected())
+    {
+        Log.println("Wifi wasn't connected, restarting");
+        esp_restart();
+    }
 
     int motion = digitalRead(motion_sensor_pin);
     if (motion != motionSensor->getState())
     {
         motionSensor->setState(motion);
-    }
-
-    //TODO: If enough time has passed
-    if (millis() - read_time_10s > 10000) {
-        readIfPossibleSPS30();
     }
 
     if (millis() - read_time_10s > 10000) {
@@ -365,7 +409,7 @@ void loop(){
         dht22Humidity->setAvailability(humidity != NAN);
         dht22Temperature->setAvailability(temp != NAN);
 
-        Serial.printf("temp: %f humidity: %f\n", temp, humidity);
+        Log.printf("temp: %f humidity: %f\n", temp, humidity);
         if (humidity != NAN)
         {
             dht22Humidity->setValue(humidity);
@@ -377,16 +421,19 @@ void loop(){
         }
     }
 
-    if (millis() - read_time_500ms > 500) {
-        int current1 = analogRead(current_sensor1_pin);
-        current_sensor1->setValue(current1);
+    if (millis() - read_time_2s > 2000) {
+        uptime->setValue((uint32_t)millis()/1000.0);
+        read_time_2s = millis();
     }
-
     if (millis() - read_time_10s > 10000) {
+        readIfPossibleSPS30();
         read_time_10s = millis();
     }
 
     if (millis() - read_time_500ms > 500) {
+        int current1 = analogRead(current_sensor1_pin);
+        current_sensor1->setValue(current1);
+
         read_time_500ms = millis();
     }
 }

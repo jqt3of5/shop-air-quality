@@ -11,9 +11,8 @@
 #include <HASwitch.h>
 #include <sensirion_uart.h>
 #include <esp_task_wdt.h>
-#include <TLog.h>
-#include <SyslogStream.h>
-
+#include <GLog.h>
+#include <ESPmDNS.h>
 
 const char * mDNSname= "workshopcontroller1";
 const char * deviceId = "workshop-environment-controller-1";
@@ -21,14 +20,12 @@ const char * ssid = "WaitingOnComcast";
 const char * pwd = "1594N2640W";
 const char * mqtt_host = "tiltpi.equationoftime.tech";
 const char * graylog_host = "dockervm";
-const int graylog_post = 1514;
 
 const int WDT_TIMEOUT = 5;
 
 WiFiClient client;
 HADevice device(deviceId);
 HAMqtt mqtt(client, device);
-SyslogStream telnetSerialStream = SyslogStream();
 
 HASensor * uptime = new HASensor("wec1_uptime");
 
@@ -296,8 +293,6 @@ void setup(){
     while (!Serial) { // needed to keep leonardo/micro from starting too fast!
         delay(10);
     }
-
-
     WiFi.setAutoReconnect(true);
 
     //TODO: A webportal to configure wifi stuff would be awesome.
@@ -311,19 +306,17 @@ void setup(){
     auto address = MDNS.queryHost(graylog_host);
     if (((uint32_t)address) == 0)
     {
-        Serial.printf("Query for %s failed\n", graylog_post);
+        Serial.printf("Query for %s failed\n", graylog_host);
     }
     else
     {
-        telnetSerialStream.setDestination(address.toString().c_str());
-        telnetSerialStream.setRaw(true);
-        telnetSerialStream.setPort(graylog_post);
+        auto gelfClient = new WiFiClient();
+        auto gelfStream = new GelfUDPLogger(gelfClient);
+        gelfStream->begin(address.toString().c_str(), deviceId);
 
-        const std::shared_ptr<LOGBase> syslogStreamPtr = std::make_shared<SyslogStream>(telnetSerialStream);
-        Log.addPrintStream(syslogStreamPtr);
+        Log.addHandler(gelfStream);
     }
 
-    Log.begin();
     Log.println("wifi connected");
 
     setupOTA();
@@ -380,19 +373,12 @@ void loop(){
 
     esp_task_wdt_reset();
 
-    Log.loop();
     mqtt.loop();
     ArduinoOTA.handle();
 
     if (!mqtt.isConnected())
     {
         Log.println("Mqtt wasn't connected, restarting");
-        esp_restart();
-    }
-
-    if (!client.connected())
-    {
-        Log.println("Wifi wasn't connected, restarting");
         esp_restart();
     }
 

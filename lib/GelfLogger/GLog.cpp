@@ -1,6 +1,5 @@
 #include "GLog.h"
 
-
 void Logger::addAdditionalField(const char *fieldName, const char *value) {
     if (_additionalFields == nullptr)
     {
@@ -23,43 +22,44 @@ void Logger::addAdditionalField(const char *fieldName, const char *value) {
         _maxfields = maxfields;
     }
 
-    //TODO: Should update if field already exists
+    //TODO: Should update if field already exists, like a dictionary
     _additionalFields[_fieldCount] = new std::tuple<const char *, const char *>(fieldName, value);
-
 }
 
-GelfUDPLogger::GelfUDPLogger(const char * serverUrl, const char * host, int port, bool compress) {
+GelfUDPLogger::GelfUDPLogger(WiFiClient *client) {
+
+    _client = client;
+    _fieldCount = 0;
+}
+
+void GelfUDPLogger::begin(const char * serverUrl, const char * host, int port, bool compress) {
     _serverUrl = serverUrl;
     _host = host;
     _port = port;
     _compress = compress;
 
-    _fieldCount = 0;
+    _client->connect(serverUrl, port);
 }
 
-void GelfUDPLogger::begin() {
-    //TODO: Connect to the Gelf server
-
-}
-
-size_t GelfUDPLogger::write(uint8_t) {
-    return nullptr;
+size_t GelfUDPLogger::write(uint8_t n) {
+    return _client->write(n);
 }
 
 size_t GelfUDPLogger::write(const uint8_t *buffer, size_t size) {
-    return Print::write(buffer, size);
+   return _client->write(buffer, size);
 }
 
 int GelfUDPLogger::availableForWrite() {
-    return Print::availableForWrite();
+    return _client->availableForWrite();
 }
 
-void GelfUDPLogger::flush() {
-    Print::flush();
-}
+//void GelfUDPLogger::flush() {
+//    Print::flush();
+//}
 
-AggregateLogger::AggregateLogger() : _handlerCount(0), _handlers(nullptr), _maxHandlers(0)
+AggregateLogger::AggregateLogger() : _maxHandlers(0), _handlerCount(0), _handlers(nullptr)
 {
+
 }
 
 size_t AggregateLogger::write(uint8_t n)
@@ -80,20 +80,21 @@ size_t AggregateLogger::write(const uint8_t *buffer, size_t size)
 }
 int AggregateLogger::availableForWrite()
 {
-
+    //TODO: Not sure what to do here...
+    return 0;
 }
-void AggregateLogger::flush()
-{
-    Serial.flush();
-    for (int i = 0; i < _handlerCount; ++i)
-    {
-        _handlers[i]->flush();
-    }
-}
+//void AggregateLogger::flush()
+//{
+//    Serial.flush();
+//    for (int i = 0; i < _handlerCount; ++i)
+//    {
+//        _handlers[i]->flush();
+//    }
+//}
 
 void AggregateLogger::addHandler(Print * printer)
 {
-    if (_handlers == NULL)
+    if (_handlers == nullptr)
     {
         _maxHandlers = 5;
         _handlers = new Print*[_maxHandlers];

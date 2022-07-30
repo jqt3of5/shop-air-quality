@@ -23,8 +23,10 @@ const char * ssid = "WaitingOnComcast";
 const char * pwd = "1594N2640W";
 const char * mqtt_host = "tiltpi.equationoftime.tech";
 const char * graylog_host = "dockervm";
+const char * SOFTWARE_VERSION = "1.0.0";
 
 const int WDT_TIMEOUT = 5;
+TaskHandle_t _taskHandle;
 
 WiFiClient client;
 HADevice device(deviceId);
@@ -59,6 +61,7 @@ HAFan * wenAirFilter = new HAFan("wec1_wen_filter", HAFan::SpeedsFeature);
 void setupOTA() {
     ArduinoOTA
             .onStart([]() {
+                esp_task_wdt_delete(_taskHandle);
                 String type;
                 if (ArduinoOTA.getCommand() == U_FLASH)
                     type = "sketch";
@@ -66,21 +69,21 @@ void setupOTA() {
                     type = "filesystem";
 
                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-                Log.println("Start updating " + type);
+                Log.printf("Start OTA type: %s", type);
             })
             .onEnd([]() {
-                Log.println("\nEnd");
+                Log.printf("End OTA");
             })
             .onProgress([](unsigned int progress, unsigned int total) {
-                Log.printf("Progress: %u%%\r", (progress / (total / 100)));
+                Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
             })
             .onError([](ota_error_t error) {
-                Log.printf("Error[%u]: ", error);
-                if (error == OTA_AUTH_ERROR) Log.println("Auth Failed");
-                else if (error == OTA_BEGIN_ERROR) Log.println("Begin Failed");
-                else if (error == OTA_CONNECT_ERROR) Log.println("Connect Failed");
-                else if (error == OTA_RECEIVE_ERROR) Log.println("Receive Failed");
-                else if (error == OTA_END_ERROR) Log.println("End Failed");
+                Log.printf("OTA Error[%u]: ", error);
+                if (error == OTA_AUTH_ERROR) Log.printf("Auth Failed\n");
+                else if (error == OTA_BEGIN_ERROR) Log.printf("Begin Failed\n");
+                else if (error == OTA_CONNECT_ERROR) Log.printf("Connect Failed\n");
+                else if (error == OTA_RECEIVE_ERROR) Log.printf("Receive Failed\n");
+                else if (error == OTA_END_ERROR) Log.printf("End Failed\n");
             });
 
     ArduinoOTA.begin();
@@ -241,17 +244,17 @@ void readIfPossibleSPS30(){
             sps30_pm10->setValue(m.mc_10p0);
             sps30_typical->setValue(m.typical_particle_size);
 
-            Log.printf("measured values:\n"
-                   "\t%0.2f pm1.0\n"
-                   "\t%0.2f pm2.5\n"
-                   "\t%0.2f pm4.0\n"
-                   "\t%0.2f pm10.0\n"
-                   "\t%0.2f nc0.5\n"
-                   "\t%0.2f nc1.0\n"
-                   "\t%0.2f nc2.5\n"
-                   "\t%0.2f nc4.5\n"
-                   "\t%0.2f nc10.0\n"
-                   "\t%0.2f typical particle size\n\n",
+            //TODO: Thiscauses stackoverflow
+            Log.printf("%0.2f pm1.0\n"
+                   "%0.2f pm2.5\n"
+//                   "%0.2f pm4.0\n"
+//                   "%0.2f pm10.0\n"
+//                   "%0.2f nc0.5\n"
+//                   "%0.2f nc1.0\n"
+//                   "%0.2f nc2.5\n"
+//                   "%0.2f nc4.5\n"
+//                   "%0.2f nc10.0\n"
+                   "%0.2f typical particle size\n",
                    m.mc_1p0, m.mc_2p5, m.mc_4p0, m.mc_10p0, m.nc_0p5,
                    m.nc_1p0, m.nc_2p5, m.nc_4p0, m.nc_10p0,
                    m.typical_particle_size);
@@ -334,7 +337,8 @@ void setupWenRadio() {
 void setup(){
 
     esp_task_wdt_init(WDT_TIMEOUT, true);
-    esp_task_wdt_add(NULL);
+    _taskHandle = xTaskGetCurrentTaskHandle();
+    esp_task_wdt_add(_taskHandle);
 
     Serial.begin(115200);
 
@@ -350,8 +354,6 @@ void setup(){
         WiFi.begin(ssid, pwd);
     } while (WiFi.waitForConnectResult() != WL_CONNECTED);
 
-    Log.println("wifi connected");
-
 //    auto address = MDNS.queryHost(graylog_host);
 //    if (((uint32_t)address) == 0)
 //    {
@@ -365,7 +367,8 @@ void setup(){
 
         Log.addHandler(gelfStream);
 //    }
-
+    Log.addAdditionalField("Version", SOFTWARE_VERSION);
+    Log.printf("wifi connected\n");
     setupOTA();
 
     device.enableSharedAvailability();
@@ -405,11 +408,11 @@ void setup(){
 
     while (!mqtt.isConnected())
     {
-        Log.println("Mqtt not connected");
+        Log.printf("Mqtt not connected\n");
         mqtt.loop();
     }
 
-    Log.println("Mqtt connected");
+    Log.printf("Mqtt connected\n");
 
     MDNS.begin(mDNSname);
 }
@@ -426,7 +429,7 @@ void loop(){
 
     if (!mqtt.isConnected())
     {
-        Log.println("Mqtt wasn't connected, restarting");
+        Log.printf("Mqtt wasn't connected, restarting\n");
         esp_restart();
     }
 

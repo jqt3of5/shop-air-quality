@@ -11,7 +11,7 @@
 class Logger : public Print
 {
 public:
-    void addAdditionalField(const char * fieldName, const char * value);
+    virtual void addAdditionalField(const char * fieldName, const char * value);
     char * getFieldString();
     size_t nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuffer, size_t size);
 //protected:

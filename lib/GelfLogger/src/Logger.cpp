@@ -4,6 +4,7 @@
 
 #include "Logger.h"
 #include <cstring>
+#include <algorithm>
 #include <stdio.h>
 
 void Logger::addAdditionalField(const char *fieldName, const char *value) {
@@ -43,38 +44,36 @@ char *Logger::getFieldString() {
         }
         char param[256] = {0};
         auto paramFormat = R"("_%s":"%s")";
-        auto paramExpander = "%s, %s";
 
         int maxLen = 256;
         int len = 0;
         char * params = new char[maxLen]();
 
-        sprintf(param, paramFormat, std::get<0>(*_additionalFields[0]), std::get<1>(*_additionalFields[0]));
-        int l = strnlen(param, 256);
+        int l = snprintf(param, maxLen, paramFormat, std::get<0>(*_additionalFields[0]), std::get<1>(*_additionalFields[0]));
         if (l + len > maxLen)
         {
-            maxLen = l + len + 128;
-            auto p = new char[maxLen];
+            maxLen = l + len + 1;
+            auto p = new char[maxLen]();
             strncpy(p, params, l + len);
             delete[] params;
             params = p;
         }
-        strncpy(params, param, l + len);
+        strncat(params, param, l);
         len = l + len;
 
         for (int i = 1; i < _fieldCount; ++i)
         {
-            sprintf(param, paramFormat, std::get<0>(*_additionalFields[i]), std::get<1>(*_additionalFields[i]));
-            int l = strnlen(param, 256);
+            int l = snprintf(param, maxLen, paramFormat, std::get<0>(*_additionalFields[i]), std::get<1>(*_additionalFields[i]));
             if (l + len > maxLen)
             {
-                maxLen = l + len + 128;
-                auto p = new char[maxLen];
+                maxLen = l + len + 1;
+                auto p = new char[maxLen]();
                 strncpy(p, params, l + len);
                 delete[] params;
                 params = p;
             }
-            sprintf(params, paramExpander, params, param);
+            strncat(params, ", ", 2);
+            strncat(params, param, l);
             len = l + len;
         }
         _additionalFieldString = params;
@@ -91,7 +90,7 @@ size_t Logger::nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuf
     {
         if (inBuffer[i] == '\0')
         {
-            if (j < maxSize) {
+            if (j < maxSize-2) {
                 outBuffer[j] = '\\';
                 outBuffer[j + 1] = '0';
             }
@@ -99,9 +98,17 @@ size_t Logger::nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuf
         }
         else if (inBuffer[i] == '\n')
         {
-            if (j < maxSize) {
+            if (j < maxSize-2) {
                 outBuffer[j] = '\\';
                 outBuffer[j + 1] = 'n';
+            }
+            j += 1;
+        }
+        else if (inBuffer[i] == '\r')
+        {
+            if (j < maxSize-2) {
+                outBuffer[j] = '\\';
+                outBuffer[j + 1] = 'r';
             }
             j += 1;
         }
@@ -109,5 +116,7 @@ size_t Logger::nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuf
             outBuffer[j] = inBuffer[i];
         }
     }
-    return j - 1;
+    //Ensure last byte is null terminating
+    outBuffer[std::min((int)maxSize-1, j)] = 0;
+    return j;
 }

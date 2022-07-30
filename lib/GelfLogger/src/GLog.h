@@ -28,17 +28,19 @@ class AggregateLogger : public Logger
 {
 public:
     AggregateLogger();
-    void addHandler(Print * printer);
+    void addHandler(Logger * printer);
 
     size_t write(uint8_t n) override;
     size_t write(const uint8_t *buffer, size_t size) override;
     int availableForWrite() override;
 
+    void addAdditionalField(const char *fieldName, const char *value);
 //    void flush() override;
 private:
     int _maxHandlers;
     int _handlerCount;
-    Print ** _handlers;
+    Logger ** _handlers;
+
 };
 
 extern AggregateLogger Log;

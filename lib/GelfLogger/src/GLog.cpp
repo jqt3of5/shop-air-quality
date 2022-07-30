@@ -42,11 +42,18 @@ size_t GelfUDPLogger::write(const uint8_t *buffer, size_t size) {
     char * message = m;
 
     len = nsanitize(message, sizeof(m), buffer, size);
-    if (len + 1 > 64)
+    //No sanitation occurred
+    if (size == len)
     {
-        message = new char[len+1];
-        nsanitize(message, len+1, buffer, size);
+       message = (char *) buffer;
     }
+    //Sanitation occurred and we overran our buffer
+    else if (len + 1 > sizeof(m))
+    {
+        message = new char[len+1]();
+        nsanitize(message, len, buffer, size);
+    }
+//    Serial.printf("message: %s\n", message);
 
     char t[64] = {0};
     char * temp = t;
@@ -56,31 +63,29 @@ size_t GelfUDPLogger::write(const uint8_t *buffer, size_t size) {
         auto fields = getFieldString();
         len = snprintf(t, sizeof(t), messageWithFieldsFormat, _host, message, fields);
 
-        if (len+2 > 64)
+        if (len+1 > sizeof(t))
         {
-            temp = new char[len+2]();
-            snprintf(temp, len+2, messageWithFieldsFormat, _host, message, fields);
+            temp = new char[len+1]();
+            snprintf(temp, len+1, messageWithFieldsFormat, _host, message, fields);
         }
-        Serial.printf("%s", temp);
     } else {
         auto messageWithoutFieldsFormat = R"({ "version":"1.1", "host":"%s", "short_message":"%s", "level":"1" })";
         len = snprintf(t, sizeof(t), messageWithoutFieldsFormat, _host, message);
 
-        if (len+2 > 64)
+        if (len+1 > sizeof(t))
         {
-            temp = new char[len+2]();
-            snprintf(temp, len+2, messageWithoutFieldsFormat, _host, message);
+            temp = new char[len+1]();
+            snprintf(temp, len+1, messageWithoutFieldsFormat, _host, message);
         }
-        Serial.printf("%s", temp);
     }
 
-    _client->write(temp, len+2);
+    _client->write(temp, len+1);
 
-    if (len +2 > 64)
+    if (len +1 > 64)
     {
         delete temp;
     }
-    return len + 2;
+    return len + 1;
 }
 
 int GelfUDPLogger::availableForWrite() {
@@ -128,19 +133,24 @@ int AggregateLogger::availableForWrite()
 //        _handlers[i]->flush();
 //    }
 //}
-
-void AggregateLogger::addHandler(Print * printer)
+void AggregateLogger::addAdditionalField(const char *fieldName, const char *value) {
+    for (int i = 0; i < _handlerCount; ++i)
+    {
+        _handlers[i]->addAdditionalField(fieldName, value);
+    }
+}
+void AggregateLogger::addHandler(Logger * printer)
 {
     if (_handlers == nullptr)
     {
         _maxHandlers = 5;
-        _handlers = new Print*[_maxHandlers];
+        _handlers = new Logger*[_maxHandlers];
     }
 
     if (_handlerCount >= _maxHandlers)
     {
         auto maxHandlers = _maxHandlers + 5;
-        auto handlers = new Print*[_maxHandlers];
+        auto handlers = new Logger*[_maxHandlers];
 
         for (int i = 0; i < _handlerCount; ++i)
         {

@@ -4,3 +4,4 @@ include_directories("${CMAKE_CURRENT_LIST_DIR}/.pio/libdeps/esp32dev/Adafruit Un
 include_directories("${CMAKE_CURRENT_LIST_DIR}/.pio/libdeps/esp32dev/DHT sensor library")
 include_directories("${CMAKE_CURRENT_LIST_DIR}/lib/GelfLogger")
 
+

@@ -302,22 +302,21 @@ void setup(){
         WiFi.begin(ssid, pwd);
     } while (WiFi.waitForConnectResult() != WL_CONNECTED);
 
+    Log.println("wifi connected");
 
-    auto address = MDNS.queryHost(graylog_host);
-    if (((uint32_t)address) == 0)
-    {
-        Serial.printf("Query for %s failed\n", graylog_host);
-    }
-    else
-    {
+//    auto address = MDNS.queryHost(graylog_host);
+//    if (((uint32_t)address) == 0)
+//    {
+//        Serial.printf("Query for %s failed\n", graylog_host);
+//    }
+//    else
+//    {
         auto gelfClient = new WiFiClient();
         auto gelfStream = new GelfUDPLogger(gelfClient);
-        gelfStream->begin(address.toString().c_str(), deviceId);
+        gelfStream->begin("192.168.4.177", deviceId);
 
         Log.addHandler(gelfStream);
-    }
-
-    Log.println("wifi connected");
+//    }
 
     setupOTA();
 

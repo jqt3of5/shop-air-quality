@@ -5,17 +5,7 @@
 #include <Print.h>
 #include <HardwareSerial.h>
 #include <WiFiClient.h>
-
-class Logger : public Print
-{
-public:
-    void addAdditionalField(const char * fieldName, const char * value);
-
-protected:
-    int _fieldCount = 0;
-    int _maxfields = 0;
-    std::tuple <const char *, const char*> ** _additionalFields = nullptr;
-};
+#include "Logger.h"
 
 class GelfUDPLogger : public Logger
 {
@@ -25,13 +15,12 @@ public:
     size_t write(const uint8_t *buffer, size_t size) override;
     int availableForWrite() override;
 //    void flush();
-    void begin(const char * serverUrl, const char * host, int port = 122012, bool compress = true);
+    void begin(const IPAddress& address, const char * host, int port = 12201, bool compress = true);
+    void begin(const char* address, const char * host, int port = 12201, bool compress = true);
 
 private:
     WiFiClient * _client;
     bool _compress;
-    const char * _serverUrl;
-    int _port;
     const char * _host;
 };
 
@@ -52,6 +41,6 @@ private:
     Print ** _handlers;
 };
 
-AggregateLogger Log;
+extern AggregateLogger Log;
 
 #endif //GELFLOGGER_LIBRARY_H

@@ -4,6 +4,7 @@
 
 #include "Logger.h"
 #include <cstring>
+#include <stdio.h>
 
 void Logger::addAdditionalField(const char *fieldName, const char *value) {
     if (_additionalFields == nullptr)

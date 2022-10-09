@@ -3,5 +3,6 @@ include_directories("${CMAKE_CURRENT_LIST_DIR}/lib/PubSubClient")
 include_directories("${CMAKE_CURRENT_LIST_DIR}/.pio/libdeps/esp32dev/Adafruit Unified Sensor")
 include_directories("${CMAKE_CURRENT_LIST_DIR}/.pio/libdeps/esp32dev/DHT sensor library")
 include_directories("${CMAKE_CURRENT_LIST_DIR}/lib/GelfLogger")
+include_directories("${CMAKE_CURRENT_LIST_DIR}/lib/WenAirFilter433")
 
 

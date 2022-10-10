@@ -1,3 +1,4 @@
+#include <cstring>
 #include "GLog.h"
 
 AggregateLogger Log;
@@ -35,62 +36,126 @@ size_t GelfUDPLogger::write(uint8_t n) {
 }
 
 
-size_t GelfUDPLogger::write(const uint8_t *buffer, size_t size) {
+size_t GelfUDPLogger::write(const uint8_t * message, size_t size) {
 
-    int len = 0;
-    char m[64] = {0};
-    char * message = m;
-
-    len = nsanitize(message, sizeof(m), buffer, size);
-    //No sanitation occurred
-    if (size == len)
+    if (!_client->connected())
     {
-       message = (char *) buffer;
+        return 0;
     }
-    //Sanitation occurred and we overran our buffer
-    else if (len + 1 > sizeof(m))
+    //TODO:
+//    auto len = nsanitize(buffer, maxLen, message, size);
+
+    int maxLen = 128;
+    char m[128] = {0};
+    char * buffer = m;
+
+    auto len = serialize(buffer, maxLen, message, size);
+    if (len + 1 > maxLen)
     {
-        message = new char[len+1]();
-        nsanitize(message, len, buffer, size);
-    }
-//    Serial.printf("message: %s\n", message);
-
-    char t[64] = {0};
-    char * temp = t;
-
-    if (_fieldCount > 0) {
-        auto messageWithFieldsFormat = R"({ "version":"1.1", "host":"%s", "short_message":"%s", "level":"1", %s })";
-        auto fields = getFieldString();
-        len = snprintf(t, sizeof(t), messageWithFieldsFormat, _host, message, fields);
-
-        if (len+1 > sizeof(t))
-        {
-            temp = new char[len+1]();
-            snprintf(temp, len+1, messageWithFieldsFormat, _host, message, fields);
-        }
-    } else {
-        auto messageWithoutFieldsFormat = R"({ "version":"1.1", "host":"%s", "short_message":"%s", "level":"1" })";
-        len = snprintf(t, sizeof(t), messageWithoutFieldsFormat, _host, message);
-
-        if (len+1 > sizeof(t))
-        {
-            temp = new char[len+1]();
-            snprintf(temp, len+1, messageWithoutFieldsFormat, _host, message);
-        }
+        buffer = new char[len + 1]();
+        serialize(buffer, len + 1, message, size);
     }
 
-    _client->write(temp, len+1);
+    _client->write(buffer, len+1);
 
-    if (len +1 > 64)
+    if (len + 1 > maxLen)
     {
-        delete temp;
+        delete buffer;
     }
-    return len + 1;
+
+    return len;
+}
+
+void GelfUDPLogger::logf(char *format, ...) {
+    if (!_client->connected())
+    {
+        return;
+    }
+
+    int maxMsgLen = 128;
+
+    char msg[128] = {0};
+    char * msgBuffer = msg;
+
+    va_list args;
+    va_start (args, format);
+    auto msgLen = vsnprintf(msgBuffer, maxMsgLen, format, args);
+    va_end (args);
+
+    if (msgLen + 1 > maxMsgLen)
+    {
+       msgBuffer = new char[msgLen + 1]();
+       maxMsgLen = msgLen + 1;
+       va_start (args, format);
+       msgLen = vsnprintf(msgBuffer, maxMsgLen, format, args);
+       va_end (args);
+    }
+
+    int maxEventLen = 128;
+
+    char event[128] = {0};
+    char * eventBuffer = msg;
+    //TODO: somehow aggregate the name and values for structured logging
+    int eventLen = serialize(eventBuffer, maxEventLen, (const uint8_t*)msgBuffer, msgLen);
+
+    //TODO:
+//    auto len = nsanitize(buffer, maxLen, message, size);
+
+    if (eventLen + 1 > maxEventLen)
+    {
+        eventBuffer = new char[eventLen + 1]();
+        //TODO: somehow aggregate the name and values for structured logging
+        eventLen = serialize(eventBuffer, maxEventLen, (const uint8_t*)msgBuffer, msgLen);
+    }
+
+    _client->write(eventBuffer, eventLen+1);
+
+    if (eventLen + 1 > maxEventLen)
+    {
+        delete eventBuffer;
+    }
+
+//    return eventLen;
+}
+
+size_t GelfUDPLogger::serialize(char * buffer, size_t maxLen, const uint8_t * message, size_t size)
+{
+    return serialize(buffer, maxLen, message, size, {}, 0);
+}
+
+size_t GelfUDPLogger::serialize(char * buffer, size_t maxLen, const uint8_t * message, size_t size, std::tuple<const char*, const char*> fields[], int fieldCount)
+{
+    auto messageWithFieldsFormat = R"({ "version":"1.1", "host":"%s", "short_message":"%s", "level":"1")";
+    auto endMessage = " }";
+
+    size_t len = snprintf(buffer, maxLen, messageWithFieldsFormat, _host, message);
+    auto total = len;
+    auto remaining = maxLen < len ? 0 : maxLen - len;
+
+    if (_fieldCount > 0)
+    {
+        strncat(buffer + total, ",", remaining);
+        total += strlen(",");
+    }
+    len = nfield(buffer+ total, remaining, _additionalFields, _fieldCount);
+    total += len;
+    remaining = remaining < len ? 0 : remaining - len;
+
+    len += nfield(buffer + total, maxLen, fields, fieldCount);
+    total += len;
+    maxLen = remaining < len ? 0 : remaining - len;
+
+    strncat(buffer + total, endMessage, remaining);
+    total += strlen(endMessage);
+
+    buffer[std::min(total, maxLen)] = 0;
+    return total;
 }
 
 int GelfUDPLogger::availableForWrite() {
     return _client->availableForWrite();
 }
+
 
 
 //void GelfUDPLogger::flush() {
@@ -102,9 +167,19 @@ AggregateLogger::AggregateLogger() : _maxHandlers(0), _handlerCount(0), _handler
 
 }
 
+void AggregateLogger::logf(char *format, ...) {
+    va_list args;
+    va_start (args, format);
+    for (int i = 0; i < _handlerCount; ++i)
+    {
+        _handlers[i]->logf(format, args);
+    }
+    va_end (args);
+}
+
 size_t AggregateLogger::write(uint8_t n)
 {
-    Serial.write(n);
+//    Serial.write(n);
     for (int i = 0; i < _handlerCount; ++i)
     {
         _handlers[i]->write(n);
@@ -113,7 +188,7 @@ size_t AggregateLogger::write(uint8_t n)
 }
 size_t AggregateLogger::write(const uint8_t *buffer, size_t size)
 {
-    Serial.write(buffer, size);
+//    Serial.write(buffer, size);
     for (int i = 0; i < _handlerCount; ++i)
     {
         _handlers[i]->write(buffer, size);
@@ -150,7 +225,7 @@ void AggregateLogger::addHandler(Logger * printer)
     if (_handlerCount >= _maxHandlers)
     {
         auto maxHandlers = _maxHandlers + 5;
-        auto handlers = new Logger*[_maxHandlers];
+        auto handlers = new Logger*[maxHandlers];
 
         for (int i = 0; i < _handlerCount; ++i)
         {

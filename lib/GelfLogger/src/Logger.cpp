@@ -11,13 +11,13 @@ void Logger::addAdditionalField(const char *fieldName, const char *value) {
     if (_additionalFields == nullptr)
     {
         _maxfields = 5;
-        _additionalFields = new std::tuple<const char *, const char*>*[_maxfields]();
+        _additionalFields = new std::tuple <const char *, const char*>[_maxfields]();
     }
 
     if (_fieldCount >= _maxfields)
     {
         auto maxfields = _maxfields + 5;
-        auto additionalFields = new std::tuple<const char *, const char*>*[_maxfields]();
+        auto additionalFields = new std::tuple <const char *, const char*>[maxfields]();
 
         for (int i = 0; i < _fieldCount; ++i)
         {
@@ -30,58 +30,35 @@ void Logger::addAdditionalField(const char *fieldName, const char *value) {
     }
 
     //TODO: Should update if field already exists, like a dictionary
-    _additionalFields[_fieldCount] = new std::tuple<const char *, const char *>(fieldName, value);
+    _additionalFields[_fieldCount] = std::tuple<const char *, const char *>(fieldName, value);
     _fieldCount += 1;
 
 }
 
-char *Logger::getFieldString() {
-    if (_fieldCount > 0)
+int Logger::nfield(char * buffer, int maxLen, std::tuple<const char *, const char *> fields[], int count)
+{
+    //TODO: Underscore is an additional field thing
+    auto firstParamFormat = R"("_%s":"%s")";
+    auto paramFormat = R"(,"_%s":"%s")";
+
+    int start = 0;
+    for (int i = 0; i < count; ++i)
     {
-        if (_additionalFieldString != nullptr)
-        {
-            return _additionalFieldString;
-        }
-        char param[256] = {0};
-        auto paramFormat = R"("_%s":"%s")";
+        auto remaining = maxLen - start;
+        if (remaining < 0)
+            remaining = 0;
 
-        int maxLen = 256;
-        int len = 0;
-        char * params = new char[maxLen]();
-
-        int l = snprintf(param, maxLen, paramFormat, std::get<0>(*_additionalFields[0]), std::get<1>(*_additionalFields[0]));
-        if (l + len > maxLen)
-        {
-            maxLen = l + len + 1;
-            auto p = new char[maxLen]();
-            strncpy(p, params, l + len);
-            delete[] params;
-            params = p;
+        if (i != 0) {
+            start += snprintf(buffer + start, remaining, paramFormat, std::get<0>(fields[i]), std::get<1>(fields[i]));
+        } else {
+            start += snprintf(buffer + start, remaining, firstParamFormat, std::get<0>(fields[i]), std::get<1>(fields[i]));
         }
-        strncat(params, param, l);
-        len = l + len;
-
-        for (int i = 1; i < _fieldCount; ++i)
-        {
-            int l = snprintf(param, maxLen, paramFormat, std::get<0>(*_additionalFields[i]), std::get<1>(*_additionalFields[i]));
-            if (l + len > maxLen)
-            {
-                maxLen = l + len + 1;
-                auto p = new char[maxLen]();
-                strncpy(p, params, l + len);
-                delete[] params;
-                params = p;
-            }
-            strncat(params, ", ", 2);
-            strncat(params, param, l);
-            len = l + len;
-        }
-        _additionalFieldString = params;
     }
 
-    return _additionalFieldString;
-}
+    buffer[std::min(start, maxLen)] = 0;
 
+    return start;
+}
 
 size_t Logger::nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuffer, size_t size)
 {
@@ -120,3 +97,4 @@ size_t Logger::nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuf
     outBuffer[std::min((int)maxSize-1, j)] = 0;
     return j;
 }
+

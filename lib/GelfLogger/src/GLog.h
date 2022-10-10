@@ -3,7 +3,6 @@
 
 #include <tuple>
 #include <Print.h>
-#include <HardwareSerial.h>
 #include <WiFiClient.h>
 #include "Logger.h"
 
@@ -14,6 +13,9 @@ public:
     size_t write(uint8_t) override;
     size_t write(const uint8_t *buffer, size_t size) override;
     int availableForWrite() override;
+    size_t serialize(char * buffer, size_t maxLen, const uint8_t * message, size_t size, std::tuple<const char*, const char*> fields[], int fieldCount);
+    size_t serialize(char * buffer, size_t maxLen, const uint8_t * message, size_t size);
+    void logf(char* format, ...);
 //    void flush();
     void begin(const IPAddress& address, const char * host, int port = 12201, bool compress = true);
     void begin(const char* address, const char * host, int port = 12201, bool compress = true);
@@ -30,6 +32,7 @@ public:
     AggregateLogger();
     void addHandler(Logger * printer);
 
+    void logf(char *format, ...);
     size_t write(uint8_t n) override;
     size_t write(const uint8_t *buffer, size_t size) override;
     int availableForWrite() override;

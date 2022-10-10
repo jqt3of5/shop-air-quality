@@ -11,14 +11,16 @@
 class Logger : public Print
 {
 public:
+
+    virtual void logf(char* format, ...) = 0;
     virtual void addAdditionalField(const char * fieldName, const char * value);
-    char * getFieldString();
-    size_t nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuffer, size_t size);
+
 //protected:
+    int nfield(char * buffer, int maxLen, std::tuple<const char *, const char*> fields[], int count);
+    size_t nsanitize(char * outBuffer, size_t maxSize, const uint8_t * inBuffer, size_t size);
     int _fieldCount = 0;
     int _maxfields = 0;
-    char * _additionalFieldString;
-    std::tuple <const char *, const char*> ** _additionalFields = nullptr;
+    std::tuple <const char *, const char*> * _additionalFields = nullptr;
 };
 
 #endif //SHOP_AIR_QUALITY_LOGGER_H

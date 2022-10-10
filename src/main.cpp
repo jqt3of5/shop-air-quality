@@ -129,7 +129,7 @@ void configureSPS30()
             //TODO: Is this too fast?
             uint16_t ret = sps30_start_measurement();
             if (ret < 0) {
-                Log.printf("error starting measurement\n");
+                Log.printf("Error starting measurement. Code: %d\n", ret);
             }
 
             sps30_pm2_5->setAvailability(ret >= 0);
@@ -141,7 +141,7 @@ void configureSPS30()
         else {
             uint16_t ret = sps30_stop_measurement();
             if (ret) {
-                Log.printf("Stopping measurement failed\n");
+                Log.printf("Stopping measurement failed. Code: %d\n", ret);
             }
 //            sps30_sleep();
 
@@ -201,7 +201,7 @@ void configureSPS30()
 
         ret = sps30_get_serial(serial);
         if (ret)
-            Log.printf("error %d reading serial\n", ret);
+            Log.printf("error reading serial. Code: %d\n", ret);
         else
             Log.printf("SPS30 Serial: %s\n", serial);
 
@@ -226,12 +226,10 @@ void readIfPossibleSPS30(){
 
     if (sps30_sleep_switch->isOnline() && sps30_sleep_switch->getState())
     {
-        Log.printf("measurements started\n");
-
         struct sps30_measurement m;
         uint16_t ret = sps30_read_measurement(&m);
         if (ret < 0) {
-            Log.printf("error reading measurement\n");
+            Log.printf("error reading measurement. Code: %d\n", ret);
         } else {
             if (SPS30_IS_ERR_STATE(ret)) {
                 Log.printf(
@@ -243,21 +241,6 @@ void readIfPossibleSPS30(){
             sps30_pm4->setValue(m.mc_4p0);
             sps30_pm10->setValue(m.mc_10p0);
             sps30_typical->setValue(m.typical_particle_size);
-
-            //TODO: Thiscauses stackoverflow
-            Log.printf("%0.2f pm1.0\n"
-                   "%0.2f pm2.5\n"
-//                   "%0.2f pm4.0\n"
-//                   "%0.2f pm10.0\n"
-//                   "%0.2f nc0.5\n"
-//                   "%0.2f nc1.0\n"
-//                   "%0.2f nc2.5\n"
-//                   "%0.2f nc4.5\n"
-//                   "%0.2f nc10.0\n"
-                   "%0.2f typical particle size\n",
-                   m.mc_1p0, m.mc_2p5, m.mc_4p0, m.mc_10p0, m.nc_0p5,
-                   m.nc_1p0, m.nc_2p5, m.nc_4p0, m.nc_10p0,
-                   m.typical_particle_size);
         }
     }
 }
@@ -283,13 +266,11 @@ void configureDHT22(){
     if (humidity != NAN)
     {
         dht22Humidity->setValue(humidity);
-        Log.printf("humidity available: %f\n", humidity);
     }
 
     if (temp != NAN)
     {
         dht22Temperature->setValue(temp);
-        Log.printf("temp available: %f\n", temp);
     }
 }
 
@@ -349,8 +330,8 @@ void setup(){
 
     //TODO: A webportal to configure wifi stuff would be awesome.
     //TODO: Save logs to internal memory for recovery
+    Serial.println("Attempting Wifi connection");
     do{
-        Serial.println("Attempting Wifi connection");
         WiFi.begin(ssid, pwd);
     } while (WiFi.waitForConnectResult() != WL_CONNECTED);
 
@@ -446,7 +427,6 @@ void loop(){
         dht22Humidity->setAvailability(humidity != NAN);
         dht22Temperature->setAvailability(temp != NAN);
 
-        Log.printf("temp: %f humidity: %f\n", temp, humidity);
         if (humidity != NAN)
         {
             dht22Humidity->setValue(humidity);

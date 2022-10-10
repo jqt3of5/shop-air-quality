@@ -4,12 +4,13 @@
 
 #include <cstdio>
 #include <Logger.h>
+#include <GLog.h>
 
 int main()
 {
-    auto logger = new Logger();
+    WiFiClient client;
+    auto logger = new GelfUDPLogger(&client);
 
-    printf("adding fields\n");
     logger->addAdditionalField("fieldA", "abcdefgh");
     logger->addAdditionalField("fieldB", "abc");
     logger->addAdditionalField("fieldC", "abcd");
@@ -17,6 +18,8 @@ int main()
 
     printf("field count: %d\n", logger->_fieldCount);
     printf("max fields : %d\n", logger->_maxfields);
-     printf("%s", logger->getFieldString());
+    logger->begin("localhost", "test" );
+    logger->printf("Test message");
+//    printf("%s", logger->);
 }
 

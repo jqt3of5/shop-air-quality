@@ -15,6 +15,7 @@
 #include <ESPmDNS.h>
 #include <wenfilter.h>
 #include "HAFan.h"
+#include "CurrentSensing.h"
 
 const char * mDNSname= "workshopcontroller1";
 const char * deviceId = "workshop-environment-controller-1";
@@ -34,7 +35,7 @@ HAMqtt mqtt(client, device);
 
 HASensor * uptime = new HASensor("wec1_uptime");
 
-const int motion_sensor_pin = 35;
+const int motion_sensor_pin = 14;
 HABinarySensor * motionSensor = new HABinarySensor("wec1_motion_sensor", false);
 
 HASensor * sps30_pm1 = new HASensor("wec1_sps30_1pm");
@@ -47,7 +48,12 @@ HASwitch * sps30_sleep_switch = new HASwitch("wec1_sps30_wake", false);
 HASwitch * sps30_clean_switch = new HASwitch("wec1_sps30_clean", false);
 
 const int current_sensor1_pin = 32;
+CurrentSensing current1(current_sensor1_pin);
 HASensor * current_sensor1 = new HASensor("wec1_current_sensor1");
+
+const int current_sensor2_pin = 34;
+HASensor * current_sensor2 = new HASensor("wec1_current_sensor2");
+CurrentSensing current2(current_sensor2_pin);
 
 const int dht_pin = 26;
 DHT dht22(dht_pin,AM2301, 1);
@@ -315,6 +321,24 @@ void setupWenRadio() {
 
     wenAirFilterDevice.begin();
 }
+
+void setupCurrent() {
+
+    current_sensor1->setName("Workshop Current Sensor 1");
+    current_sensor1->setDeviceClass("current");
+    current_sensor1->setUnitOfMeasurement("A");
+
+    current1.begin();
+    current_sensor1->setAvailability(true);
+
+    current_sensor2->setName("Workshop Current Sensor 2");
+    current_sensor2->setDeviceClass("current");
+    current_sensor2->setUnitOfMeasurement("A");
+
+    current2.begin();
+    current_sensor2->setAvailability(true);
+
+}
 void setup(){
 
     esp_task_wdt_init(WDT_TIMEOUT, true);
@@ -372,18 +396,10 @@ void setup(){
     motionSensor->setName("Workshop Motion Sensor");
 
     pinMode(motion_sensor_pin, INPUT);
+    int motion = digitalRead(motion_sensor_pin) ;
+    motionSensor->setState(motion);
 
-    //TODO: configure current sensors
-    current_sensor1->setName("Workshop Current Sensor 1");
-    current_sensor1->setDeviceClass("current");
-    current_sensor1->setUnitOfMeasurement("A");
-
-    analogSetAttenuation(ADC_2_5db);
-    adcAttachPin(current_sensor1_pin);
-    int current1 = analogRead(current_sensor1_pin);
-    current_sensor1->setValue(current1);
-
-    current_sensor1->setAvailability(true);
+    setupCurrent();
 
     mqtt.begin(mqtt_host,1883);
 
@@ -448,8 +464,11 @@ void loop(){
     }
 
     if (millis() - read_time_500ms > 500) {
-        int current1 = analogRead(current_sensor1_pin);
-        current_sensor1->setValue(current1);
+        auto c1 = current1.measure();
+        current_sensor1->setValue(c1);
+
+        auto c2 = current2.measure();
+        current_sensor2->setValue(c2);
 
         read_time_500ms = millis();
     }
